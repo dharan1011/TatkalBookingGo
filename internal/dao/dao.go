@@ -130,24 +130,31 @@ func (b *BookingDao) GenerateSeats(trainNumber int) {
 }
 
 func (bd *BookingDao) BookTicket(userId int) {
-	tx, _ := bd.db.GetDatabase().Begin()
+	tx, err := bd.db.GetDatabase().Begin()
+	if err != nil {
+		log.Println("Error beginning transaction", err)
+		return
+	}
 	defer tx.Rollback()
 	row := tx.QueryRow("SELECT booking_id, train_number, seat_number FROM bookings WHERE uid IS NULL LIMIT 1 FOR UPDATE SKIP LOCKED ")
 	b := model.Booking{}
-	err := row.Scan(&b.BookingId, &b.TrainNumber, &b.SeatNumber)
+	err = row.Scan(&b.BookingId, &b.TrainNumber, &b.SeatNumber)
 	if err == sql.ErrNoRows {
 		log.Println("No seats left")
 		return
 	} else if err != nil {
 		log.Fatal("Error row to object", err)
+		return
 	}
 	_, err = tx.Exec("UPDATE bookings SET uid = $1 WHERE uid IS NULL AND seat_number = $2", userId, b.SeatNumber)
 	if err != nil {
-		log.Fatal("Error booking ticket", err)
+		log.Println("Error booking ticket", err)
+		return
 	}
 	err = tx.Commit()
 	if err != nil {
-		log.Fatal("Error committing transaction", err)
+		log.Println("Error committing transaction", err)
+		return
 	}
 	log.Printf("%d booked %s in train no %d", userId, b.SeatNumber, b.TrainNumber)
 }
